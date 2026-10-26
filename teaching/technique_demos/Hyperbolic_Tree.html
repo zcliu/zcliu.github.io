@@ -1,0 +1,543 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Hyperbolic Animal Tree</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,500;0,600;1,400;1,500&family=Public+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* Layout: the Poincaré disk is the page; a narrow rail beside it names what sits at the centre */
+:root{
+  --bg:#F1F4F2; --panel:#FFFFFF; --ink:#1B2420; --muted:#5C6964; --line:#D2DAD5; --soft:#E6ECE8;
+  --disk:#FBFCFB; --rim:#B9C4BE; --edge:#B5C0BA; --accent:#1D6B55;
+  --p-chordata:#3568AE; --p-arthropoda:#B0751A; --p-mollusca:#8B4BA6; --p-echinodermata:#C14B45; --p-cnidaria:#22918F;
+  --f-display:"Spectral", Georgia, "Times New Roman", serif;
+  --f-body:"Public Sans", "Segoe UI", system-ui, sans-serif;
+  --f-mono:"IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#111715; --panel:#18201D; --ink:#E4EBE7; --muted:#97A59F; --line:#2C3833; --soft:#212B27;
+  --disk:#151C19; --rim:#3A4842; --edge:#3D4B45; --accent:#4FC39F;
+  --p-chordata:#77A6EA; --p-arthropoda:#E3A64A; --p-mollusca:#C18AE0; --p-echinodermata:#F08680; --p-cnidaria:#4DCBC6; color-scheme:dark }}
+:root[data-theme="dark"]{
+  --bg:#111715; --panel:#18201D; --ink:#E4EBE7; --muted:#97A59F; --line:#2C3833; --soft:#212B27;
+  --disk:#151C19; --rim:#3A4842; --edge:#3D4B45; --accent:#4FC39F;
+  --p-chordata:#77A6EA; --p-arthropoda:#E3A64A; --p-mollusca:#C18AE0; --p-echinodermata:#F08680; --p-cnidaria:#4DCBC6; color-scheme:dark }
+
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.5}
+.wrap{max-width:1320px;margin:0 auto;padding-block:26px 48px;
+  padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px));display:grid;gap:18px}
+header{display:grid;gap:6px;max-width:780px}
+.eyebrow{margin:0;font:500 12px/1 var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--accent)}
+h1{margin:0;font:600 clamp(28px,3.6vw,40px)/1.1 var(--f-display);text-wrap:balance}
+.lede{margin:0;color:var(--muted);max-width:68ch}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px}
+.toolbar{display:flex;flex-wrap:wrap;gap:12px 22px;align-items:center;padding:12px 16px}
+.field{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.lab{font:500 11px/1 var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+input[type=search]{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:7px 10px;width:230px;max-width:100%}
+.toggle{display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer}
+.toggle input{accent-color:var(--accent);width:16px;height:16px}
+button{font:500 14px/1 var(--f-body);color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px 12px;cursor:pointer}
+button:hover{border-color:var(--muted)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.hint{margin-left:auto;font-size:13px;color:var(--muted)}
+.main{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:18px;align-items:start}
+@media (max-width:1000px){.main{grid-template-columns:minmax(0,1fr)}.hint{margin-left:0}}
+.stage{padding:14px;display:flex;justify-content:center;min-width:0}
+#disk{width:min(100%, 820px, calc(100vh - 120px));min-width:min(100%, 320px);aspect-ratio:1;display:block;touch-action:none;cursor:grab;user-select:none;-webkit-user-select:none}
+#disk.dragging{cursor:grabbing}
+#disk{overflow:visible}
+.side{display:grid;gap:16px;min-width:0}
+.spec{padding:18px;display:grid;gap:10px}
+.rank{display:flex;align-items:center;gap:8px;font:500 12px/1 var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.rank i{width:10px;height:10px;border-radius:50%;display:inline-block}
+.spec h2{margin:0;font:600 26px/1.15 var(--f-display);text-wrap:balance}
+.spec .sci{margin:0;font:italic 500 17px/1.3 var(--f-display);color:var(--muted)}
+.spec .sci.upright{font-style:normal}
+.crumbs{display:flex;flex-wrap:wrap;gap:4px 2px;font-size:13px;align-items:center}
+.crumbs button,.chips button{padding:4px 8px;font-size:13px;border-radius:6px}
+.crumbs span{color:var(--muted);padding:0 2px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.sub{display:grid;gap:6px}
+.how{padding:16px 18px;font-size:14px;color:var(--muted);display:grid;gap:8px}
+.how h3{margin:0;font:600 17px/1.2 var(--f-display);color:var(--ink)}
+.how p{margin:0}
+.how ul{margin:0;padding-left:18px;display:grid;gap:3px}
+.legend{display:grid;gap:5px;font-size:13px}
+.legend div{display:flex;align-items:center;gap:8px}
+/* disk drawing (units are disk radii) */
+.rimc{fill:var(--disk);stroke:var(--rim);stroke-width:1.5}
+.ring{fill:none;stroke:var(--line);stroke-width:1;stroke-dasharray:2 5}
+.edge{fill:none;stroke:var(--edge);stroke-width:1.2}
+.edge.path{stroke:var(--muted);stroke-width:2}
+.node{cursor:pointer}
+.node .dot{stroke:var(--disk);stroke-width:1}
+.node .hit{fill:transparent}
+.node .halo{fill:none;stroke:var(--accent);stroke-width:2.5}
+.node text{fill:var(--ink);font-family:var(--f-body);dominant-baseline:central;paint-order:stroke;stroke:var(--disk);stroke-linejoin:round;pointer-events:none}
+.node.center text{font-weight:600}
+.node:hover .dot{stroke:var(--ink)}
+</style>
+
+<div class="wrap">
+  <header>
+    <p class="eyebrow">Hyperbolic browser · Lamping, Rao &amp; Pirolli, 1995</p>
+    <h1>The animal kingdom on a hyperbolic disk</h1>
+    <p class="lede">The same 183 taxa as the degree-of-interest demo, laid out in hyperbolic space and projected onto a disk. Whatever sits at the centre is large and labelled; everything else shrinks smoothly toward the rim, but the whole tree is always on screen. Click a node to slide it to the centre, or drag to move through the tree.</p>
+  </header>
+
+  <div class="card toolbar">
+    <div class="field">
+      <label class="lab" for="search">Jump to</label>
+      <input type="search" id="search" list="taxa" placeholder="Lion, Felidae, Insects…" autocomplete="off">
+      <datalist id="taxa"></datalist>
+    </div>
+    <button id="home">Centre the root</button>
+    <label class="toggle"><input type="checkbox" id="rings"> Show distance rings</label>
+    <span class="hint">Click a node to centre it · drag to pan</span>
+  </div>
+
+  <div class="main">
+    <section class="card stage">
+      <svg id="disk" viewBox="-1.04 -1.04 2.08 2.08" role="img" aria-label="Animal taxonomy drawn on a hyperbolic disk; the side panel names the taxon at the centre"></svg>
+    </section>
+    <aside class="side">
+      <div class="card spec" aria-live="polite">
+        <span class="lab">At the centre</span>
+        <div class="rank" id="frank"></div>
+        <h2 id="fname"></h2>
+        <p class="sci" id="fsci"></p>
+        <div class="sub"><span class="lab">Lineage</span><div class="crumbs" id="crumbs"></div></div>
+        <div class="sub" id="kidsbox"><span class="lab" id="kidslab"></span><div class="chips" id="kids"></div></div>
+      </div>
+      <div class="card how">
+        <h3>How it works</h3>
+        <p>Every parent–child edge has the same length in the hyperbolic plane, and each node's children share the wedge of space facing away from its parent. Hyperbolic space has room for a tree that branches without limit, because its area grows exponentially with distance.</p>
+        <p>The plane is drawn on the Poincaré disk: equal hyperbolic distances look shorter the closer they are to the rim, and edges become arcs that meet the rim at right angles.</p>
+        <p>Moving the focus doesn't redo the layout. It applies a Möbius transformation, a rigid motion of hyperbolic space, so the tree keeps its shape and only your viewpoint changes.</p>
+        <div class="legend" id="legend"></div>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<script>
+/* Linnaean ranks, one per indent level: Kingdom, Phylum, Class, Order, Family, Species */
+const RAW = `
+Animalia|Animals
+ Chordata|Chordates
+  Mammalia|Mammals
+   Primates|Primates
+    Hominidae|Great apes
+     Homo sapiens|Human
+     Pan troglodytes|Chimpanzee
+     Pongo pygmaeus|Bornean orangutan
+    Cercopithecidae|Old World monkeys
+     Macaca mulatta|Rhesus macaque
+     Mandrillus sphinx|Mandrill
+   Carnivora|Carnivorans
+    Felidae|Cats
+     Panthera leo|Lion
+     Panthera tigris|Tiger
+     Felis catus|Domestic cat
+    Canidae|Dogs and foxes
+     Canis lupus|Gray wolf
+     Vulpes vulpes|Red fox
+    Ursidae|Bears
+     Ursus arctos|Brown bear
+     Ailuropoda melanoleuca|Giant panda
+   Artiodactyla|Hoofed mammals and whales
+    Bovidae|Cattle and antelopes
+     Bos taurus|Cattle
+     Bison bison|American bison
+    Giraffidae|Giraffes
+     Giraffa camelopardalis|Giraffe
+    Delphinidae|Oceanic dolphins
+     Tursiops truncatus|Bottlenose dolphin
+     Orcinus orca|Orca
+    Balaenopteridae|Rorquals
+     Balaenoptera musculus|Blue whale
+     Megaptera novaeangliae|Humpback whale
+   Rodentia|Rodents
+    Muridae|Mice and rats
+     Mus musculus|House mouse
+     Rattus norvegicus|Brown rat
+    Sciuridae|Squirrels
+     Sciurus carolinensis|Eastern gray squirrel
+    Castoridae|Beavers
+     Castor canadensis|North American beaver
+   Chiroptera|Bats
+    Vespertilionidae|Vesper bats
+     Myotis lucifugus|Little brown bat
+    Pteropodidae|Fruit bats
+     Pteropus medius|Indian flying fox
+  Aves|Birds
+   Passeriformes|Perching birds
+    Corvidae|Crows and jays
+     Corvus corax|Common raven
+     Cyanocitta cristata|Blue jay
+    Cardinalidae|Cardinals
+     Cardinalis cardinalis|Northern cardinal
+    Icteridae|New World blackbirds
+     Icterus galbula|Baltimore oriole
+   Accipitriformes|Hawks and eagles
+    Accipitridae|Hawks, eagles, kites
+     Haliaeetus leucocephalus|Bald eagle
+     Buteo jamaicensis|Red-tailed hawk
+    Pandionidae|Ospreys
+     Pandion haliaetus|Osprey
+   Strigiformes|Owls
+    Strigidae|True owls
+     Bubo virginianus|Great horned owl
+     Bubo scandiacus|Snowy owl
+   Sphenisciformes|Penguins
+    Spheniscidae|Penguins
+     Aptenodytes forsteri|Emperor penguin
+  Reptilia|Reptiles
+   Testudines|Turtles
+    Emydidae|Pond turtles
+     Malaclemys terrapin|Diamondback terrapin
+    Cheloniidae|Sea turtles
+     Chelonia mydas|Green sea turtle
+   Squamata|Lizards and snakes
+    Pythonidae|Pythons
+     Python bivittatus|Burmese python
+    Varanidae|Monitor lizards
+     Varanus komodoensis|Komodo dragon
+   Crocodilia|Crocodilians
+    Alligatoridae|Alligators and caimans
+     Alligator mississippiensis|American alligator
+  Amphibia|Amphibians
+   Anura|Frogs and toads
+    Ranidae|True frogs
+     Lithobates catesbeianus|American bullfrog
+    Dendrobatidae|Poison dart frogs
+     Phyllobates terribilis|Golden poison frog
+   Caudata|Salamanders
+    Ambystomatidae|Mole salamanders
+     Ambystoma mexicanum|Axolotl
+  Actinopterygii|Ray-finned fishes
+   Salmoniformes|Salmon and trout
+    Salmonidae|Salmonids
+     Salmo salar|Atlantic salmon
+     Oncorhynchus mykiss|Rainbow trout
+   Cypriniformes|Carps and minnows
+    Cyprinidae|Carps
+     Cyprinus carpio|Common carp
+    Danionidae|Danios
+     Danio rerio|Zebrafish
+  Chondrichthyes|Sharks and rays
+   Lamniformes|Mackerel sharks
+    Lamnidae|White sharks and makos
+     Carcharodon carcharias|Great white shark
+   Orectolobiformes|Carpet sharks
+    Rhincodontidae|Whale sharks
+     Rhincodon typus|Whale shark
+ Arthropoda|Arthropods
+  Insecta|Insects
+   Hymenoptera|Bees, wasps, ants
+    Apidae|Bees
+     Apis mellifera|Western honey bee
+    Formicidae|Ants
+     Atta cephalotes|Leafcutter ant
+   Lepidoptera|Butterflies and moths
+    Nymphalidae|Brush-footed butterflies
+     Danaus plexippus|Monarch butterfly
+    Bombycidae|Silk moths
+     Bombyx mori|Domestic silk moth
+   Coleoptera|Beetles
+    Coccinellidae|Ladybirds
+     Coccinella septempunctata|Seven-spot ladybird
+    Lucanidae|Stag beetles
+     Lucanus cervus|European stag beetle
+   Diptera|True flies
+    Drosophilidae|Fruit flies
+     Drosophila melanogaster|Common fruit fly
+    Culicidae|Mosquitoes
+     Aedes aegypti|Yellow fever mosquito
+  Arachnida|Arachnids
+   Araneae|Spiders
+    Theridiidae|Cobweb spiders
+     Latrodectus hesperus|Western black widow
+    Salticidae|Jumping spiders
+     Maratus volans|Peacock spider
+   Scorpiones|Scorpions
+    Buthidae|Bark scorpions
+     Leiurus quinquestriatus|Deathstalker
+  Malacostraca|Crabs, shrimp, kin
+   Decapoda|Decapods
+    Portunidae|Swimming crabs
+     Callinectes sapidus|Atlantic blue crab
+    Nephropidae|Clawed lobsters
+     Homarus americanus|American lobster
+ Mollusca|Molluscs
+  Cephalopoda|Cephalopods
+   Octopoda|Octopuses
+    Octopodidae|Octopodids
+     Octopus vulgaris|Common octopus
+   Sepiida|Cuttlefish
+    Sepiidae|Cuttlefishes
+     Sepia officinalis|Common cuttlefish
+  Gastropoda|Snails and slugs
+   Stylommatophora|Land snails
+    Helicidae|Garden snails
+     Cornu aspersum|Garden snail
+  Bivalvia|Bivalves
+   Ostreida|Oysters
+    Ostreidae|True oysters
+     Crassostrea virginica|Eastern oyster
+ Echinodermata|Echinoderms
+  Asteroidea|Sea stars
+   Forcipulatida|Forcipulate sea stars
+    Asteriidae|Asteriid sea stars
+     Asterias rubens|Common starfish
+  Echinoidea|Sea urchins
+   Camarodonta|Camarodont urchins
+    Strongylocentrotidae|Spiny sea urchins
+     Strongylocentrotus purpuratus|Purple sea urchin
+ Cnidaria|Cnidarians
+  Scyphozoa|True jellyfish
+   Semaeostomeae|Moon and nettle jellies
+    Ulmaridae|Moon jellies
+     Aurelia aurita|Moon jellyfish
+  Anthozoa|Corals and anemones
+   Scleractinia|Stony corals
+    Acroporidae|Staghorn corals
+     Acropora cervicornis|Staghorn coral
+   Actiniaria|Sea anemones
+    Actiniidae|Common sea anemones
+     Actinia equina|Beadlet anemone
+`;
+const RANKS = ['Kingdom','Phylum','Class','Order','Family','Species'];
+const PLURAL = {phylum:'phyla', class:'classes', order:'orders', family:'families', species:'species'};
+const PHYLUM_VAR = {Chordata:'--p-chordata', Arthropoda:'--p-arthropoda', Mollusca:'--p-mollusca', Echinodermata:'--p-echinodermata', Cnidaria:'--p-cnidaria'};
+
+/* ---------- data ---------- */
+const nodes = [];
+(function parse(){
+  const stack = [];
+  for (const line of RAW.split('\n')){
+    if (!line.trim()) continue;
+    const depth = line.length - line.trimStart().length;
+    const [sci, common] = line.trim().split('|');
+    const n = {id: nodes.length, sci, common, depth, children: [], parent: depth ? stack[depth-1] : null};
+    stack[depth] = n; nodes.push(n);
+    if (n.parent) n.parent.children.push(n);
+  }
+})();
+const root = nodes[0];
+nodes.forEach(n => { let a = n; while (a.depth > 1) a = a.parent; n.phylum = n.depth ? a.sci : null; });
+(function leaves(n){ n.leaves = n.children.length ? n.children.reduce((s, c) => s + leaves(c), 0) : 1; return n.leaves; })(root);
+const color = n => n.phylum ? `var(${PHYLUM_VAR[n.phylum]})` : 'var(--ink)';
+const ancestors = n => { const a = []; for (let x = n; x; x = x.parent) a.unshift(x); return a; };
+
+/* ---------- complex numbers and disk automorphisms ---------- */
+const add = (a, b) => [a[0] + b[0], a[1] + b[1]];
+const sub = (a, b) => [a[0] - b[0], a[1] - b[1]];
+const mul = (a, b) => [a[0]*b[0] - a[1]*b[1], a[0]*b[1] + a[1]*b[0]];
+const div = (a, b) => { const d = b[0]*b[0] + b[1]*b[1]; return [(a[0]*b[0] + a[1]*b[1]) / d, (a[1]*b[0] - a[0]*b[1]) / d]; };
+const conj = a => [a[0], -a[1]];
+const abs2 = a => a[0]*a[0] + a[1]*a[1];
+const scale = (a, s) => [a[0]*s, a[1]*s];
+const polar = (r, t) => [r * Math.cos(t), r * Math.sin(t)];
+// translation of the disk that moves 0 to p
+const trans = (p, z) => div(add(z, p), add(mul(conj(p), z), [1, 0]));
+// a general disk automorphism z -> (a z + b) / (conj(b) z + conj(a))
+const apply = (M, z) => div(add(mul(M.a, z), M.b), add(mul(conj(M.b), z), conj(M.a)));
+const compose = (N, M) => { // N after M
+  const a = add(mul(N.a, M.a), mul(N.b, conj(M.b))), b = add(mul(N.a, M.b), mul(N.b, conj(M.a)));
+  const k = Math.sqrt(Math.max(1e-12, abs2(a) - abs2(b)));
+  return {a: scale(a, 1/k), b: scale(b, 1/k)};
+};
+const T = p => ({a:[1, 0], b:p});
+// the pure translation that sends z1 to z2
+function transBetween(z1, z2){
+  const c = mul(z1, z2), d = sub(z2, z1);
+  return scale(add(d, mul(c, conj(d))), 1 / (1 - abs2(c)));
+}
+
+/* ---------- Lamping-style layout in the hyperbolic plane ---------- */
+const STEP = 0.5; // one edge = this Euclidean length when it starts at the disk centre
+function place(n, p, parentPos, wedge){
+  n.pos = p;
+  if (!n.children.length) return;
+  let base = 0;
+  if (parentPos){ const q = trans(scale(p, -1), parentPos); base = Math.atan2(q[1], q[0]) + Math.PI; }
+  const w = n.children.map(c => Math.pow(c.leaves, 0.7)), tot = w.reduce((s, x) => s + x, 0);
+  let a = base - wedge / 2;
+  const grow = (1 + STEP) / (1 - STEP);
+  n.children.forEach((c, i) => {
+    const share = wedge * w[i] / tot, theta = a + share / 2;
+    a += share;
+    place(c, trans(p, polar(STEP, theta)), p, Math.min(Math.PI * 0.85, share * grow));
+  });
+}
+place(root, [0, 0], null, Math.PI * 2);
+
+/* ---------- drawing ---------- */
+const NS = 'http://www.w3.org/2000/svg', svg = document.getElementById('disk');
+const mk = (tag, attrs, parent) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); parent.appendChild(e); return e; };
+const PX = () => 2.08 / svg.getBoundingClientRect().width; // disk units per screen pixel
+mk('circle', {class:'rimc', cx:0, cy:0, r:1, 'vector-effect':'non-scaling-stroke'}, svg);
+const gRings = mk('g', {}, svg), gEdges = mk('g', {}, svg), gNodes = mk('g', {}, svg);
+nodes.forEach(n => {
+  if (n.parent) n.edge = mk('path', {class:'edge', 'vector-effect':'non-scaling-stroke'}, gEdges);
+  const g = n.g = mk('g', {class:'node'}, gNodes);
+  g.__node = n;
+  mk('title', {}, g).textContent = `${n.common} (${n.sci}) · ${RANKS[n.depth]}`;
+  n.hit = mk('circle', {class:'hit'}, g);
+  n.halo = mk('circle', {class:'halo', 'vector-effect':'non-scaling-stroke'}, g);
+  n.dot = mk('circle', {class:'dot', fill: color(n), 'vector-effect':'non-scaling-stroke'}, g);
+  n.label = mk('text', {}, g); n.label.textContent = n.common;
+});
+
+function geodesic(z1, z2){
+  const cross = z1[0]*z2[1] - z1[1]*z2[0];
+  if (Math.abs(cross) < 1e-5) return `M${z1[0]},${z1[1]}L${z2[0]},${z2[1]}`;
+  // circle through z1, z2 and z1's inverse in the unit circle is orthogonal to the rim
+  const big = abs2(z1) > abs2(z2) ? z1 : z2;
+  const z3 = scale(big, 1 / abs2(big));
+  const [ax, ay] = z1, [bx, by] = z2, [cx, cy] = z3;
+  const d = 2 * (ax*(by - cy) + bx*(cy - ay) + cx*(ay - by));
+  const ux = ((ax*ax + ay*ay)*(by - cy) + (bx*bx + by*by)*(cy - ay) + (cx*cx + cy*cy)*(ay - by)) / d;
+  const uy = ((ax*ax + ay*ay)*(cx - bx) + (bx*bx + by*by)*(ax - cx) + (cx*cx + cy*cy)*(bx - ax)) / d;
+  const R = Math.hypot(ax - ux, ay - uy);
+  if (!isFinite(R) || R > 60) return `M${ax},${ay}L${bx},${by}`;
+  const sweep = ((ax - ux)*(by - uy) - (ay - uy)*(bx - ux)) > 0 ? 1 : 0;
+  return `M${ax},${ay}A${R},${R} 0 0 ${sweep} ${bx},${by}`;
+}
+
+let M = {a:[1, 0], b:[0, 0]}, center = root;
+function render(){
+  const px = PX();
+  for (const n of nodes) n.z = apply(M, n.pos);
+  let best = root, bd = Infinity;
+  for (const n of nodes){ const d = abs2(n.z); if (d < bd){ bd = d; best = n; } }
+  const path = new Set(ancestors(best));
+  for (const n of nodes){
+    const z = n.z, w = Math.max(0, 1 - abs2(z)); // hyperbolic shrink factor
+    if (n.edge){ n.edge.setAttribute('d', geodesic(apply(M, n.parent.pos), z)); n.edge.classList.toggle('path', path.has(n)); }
+    const r = (2 + 9 * w) * px * (n === best ? 1.15 : 1);
+    n.g.setAttribute('transform', `translate(${z[0]},${z[1]})`);
+    n.dot.setAttribute('r', r);
+    n.hit.setAttribute('r', Math.max(r, 7 * px));
+    n.halo.setAttribute('r', n === best ? r + 5 * px : 0);
+    const show = n === best || w > 0.45;
+    n.label.style.display = show ? '' : 'none';
+    if (show){
+      const fs = (10 + 6 * w) * px;
+      n.label.setAttribute('font-size', fs);
+      n.label.setAttribute('stroke-width', 4 * px);
+      // place the label on the side facing away from the disk centre
+      const right = z[0] >= -0.02;
+      n.label.setAttribute('text-anchor', right ? 'start' : 'end');
+      n.label.setAttribute('x', (right ? 1 : -1) * (r + 4 * px));
+      n.label.setAttribute('y', 0);
+      n.label.setAttribute('opacity', n === best ? 1 : Math.min(1, (w - 0.45) * 4 + 0.3));
+    }
+    n.g.classList.toggle('center', n === best);
+  }
+  if (best !== center){ center = best; updatePanel(); }
+}
+
+/* distance rings: points at hyperbolic distance 1, 2, 3, 4 from the centre */
+function drawRings(){
+  gRings.innerHTML = '';
+  if (!document.getElementById('rings').checked) return;
+  for (let d = 1; d <= 4; d++) mk('circle', {class:'ring', cx:0, cy:0, r: Math.tanh(d / 2), 'vector-effect':'non-scaling-stroke'}, gRings);
+}
+
+/* ---------- moving the focus ---------- */
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+let anim = null;
+function centerOn(n){
+  cancelAnimationFrame(anim);
+  const w = apply(M, n.pos), len = Math.sqrt(abs2(w));
+  if (len < 1e-6) return;
+  const M0 = M, dirn = scale(w, 1 / len), total = Math.atanh(Math.min(len, 0.999999));
+  const dur = reduce ? 0 : 280 + 260 * Math.min(total, 3) / 3, t0 = performance.now();
+  const step = t => {
+    const k = dur ? Math.min(1, (t - t0) / dur) : 1, e = k < .5 ? 4*k*k*k : 1 - Math.pow(-2*k + 2, 3) / 2;
+    M = compose(T(scale(dirn, -Math.tanh(total * e))), M0);
+    render();
+    if (k < 1) anim = requestAnimationFrame(step);
+  };
+  anim = requestAnimationFrame(step);
+}
+
+function toDisk(e){
+  const p = svg.createSVGPoint(); p.x = e.clientX; p.y = e.clientY;
+  const q = p.matrixTransform(svg.getScreenCTM().inverse());
+  let z = [q.x, q.y]; const r = Math.sqrt(abs2(z));
+  if (r > 0.96) z = scale(z, 0.96 / r);
+  return z;
+}
+let drag = null;
+svg.addEventListener('pointerdown', e => {
+  cancelAnimationFrame(anim);
+  const g = e.target.closest('.node');
+  drag = {x: e.clientX, y: e.clientY, z: toDisk(e), node: g ? g.__node : null, moved: false};
+  svg.setPointerCapture(e.pointerId);
+});
+svg.addEventListener('pointermove', e => {
+  if (!drag) return;
+  if (!drag.moved && Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < 4) return;
+  drag.moved = true; svg.classList.add('dragging');
+  const z = toDisk(e);
+  M = compose(T(transBetween(drag.z, z)), M);
+  drag.z = z;
+  render();
+});
+const endDrag = () => {
+  if (drag && !drag.moved && drag.node) centerOn(drag.node);
+  drag = null; svg.classList.remove('dragging');
+};
+svg.addEventListener('pointerup', endDrag);
+svg.addEventListener('pointercancel', () => { drag = null; svg.classList.remove('dragging'); });
+
+/* ---------- side panel ---------- */
+function chip(n, parent){ const b = document.createElement('button'); b.textContent = n.common; b.title = n.sci; b.onclick = () => centerOn(n); parent.appendChild(b); }
+function updatePanel(){
+  const n = center;
+  document.getElementById('frank').innerHTML = `<i style="background:${color(n)}"></i>${RANKS[n.depth]}`;
+  document.getElementById('fname').textContent = n.common;
+  const sci = document.getElementById('fsci'); sci.textContent = n.sci; sci.classList.toggle('upright', n.depth < 5);
+  const crumbs = document.getElementById('crumbs'); crumbs.innerHTML = '';
+  ancestors(n).forEach((a, i) => {
+    if (i){ const s = document.createElement('span'); s.textContent = '›'; crumbs.appendChild(s); }
+    if (a === n){ const b = document.createElement('b'); b.textContent = a.sci; crumbs.appendChild(b); }
+    else { const b = document.createElement('button'); b.textContent = a.sci; b.title = a.common; b.onclick = () => centerOn(a); crumbs.appendChild(b); }
+  });
+  const kids = document.getElementById('kids'), lab = document.getElementById('kidslab'), box = document.getElementById('kidsbox');
+  kids.innerHTML = '';
+  const list = n.children.length ? n.children : (n.parent ? n.parent.children.filter(c => c !== n) : []);
+  box.hidden = !list.length;
+  if (n.children.length){ const nm = RANKS[n.depth + 1].toLowerCase(); lab.textContent = `Contains ${list.length} ${list.length > 1 ? PLURAL[nm] : nm}`; }
+  else lab.textContent = 'Siblings';
+  list.forEach(c => chip(c, kids));
+}
+
+/* ---------- controls ---------- */
+const lookup = new Map(), dl = document.getElementById('taxa');
+nodes.forEach(n => {
+  const a = `${n.common} (${n.sci})`;
+  [a, n.common, n.sci].forEach(k => lookup.set(k.toLowerCase(), n));
+  const o = document.createElement('option'); o.value = a; dl.appendChild(o);
+});
+const search = document.getElementById('search');
+const tryJump = () => { const n = lookup.get(search.value.trim().toLowerCase()); if (n){ centerOn(n); search.value = ''; search.blur(); } };
+search.addEventListener('change', tryJump);
+search.addEventListener('keydown', e => { if (e.key === 'Enter') tryJump(); });
+document.getElementById('home').onclick = () => centerOn(root);
+document.getElementById('rings').onchange = drawRings;
+document.getElementById('legend').innerHTML = Object.keys(PHYLUM_VAR).map(p => {
+  const n = nodes.find(x => x.depth === 1 && x.sci === p);
+  return `<div><svg width="14" height="14" aria-hidden="true"><circle cx="7" cy="7" r="6" fill="var(${PHYLUM_VAR[p]})"/></svg>${n.common} (${p})</div>`;
+}).join('');
+addEventListener('resize', render);
+
+updatePanel();
+render();
+</script>
+
+</body></html>

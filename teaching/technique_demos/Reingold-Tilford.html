@@ -1,0 +1,580 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Reingold–Tilford Stepper</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Source+Sans+3:wght@400;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+/* Layout: drafting-table stage on the left, step narration + pseudocode rail on the right */
+:root{
+  --bg:#EDF0F3; --panel:#FFFFFF; --ink:#18212B; --muted:#5B6878; --line:#CDD5DE;
+  --nodefill:#DFE6EE; --accent:#0F7C78; --forest:#4D5CD6; --incoming:#C9711A;
+  --bad:#CF3F36; --good:#2B8F55; --codebg:#F5F7F9;
+  --f-display:"Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --f-body:"Source Sans 3", "Segoe UI", system-ui, sans-serif;
+  --f-mono:"JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#11161C; --panel:#1A2129; --ink:#E5EAF0; --muted:#97A3B2; --line:#2E3844;
+  --nodefill:#27313C; --accent:#3CC1B7; --forest:#8E99FF; --incoming:#F0A14E;
+  --bad:#FF6A5F; --good:#55C784; --codebg:#151B22; color-scheme:dark }}
+:root[data-theme="dark"]{
+  --bg:#11161C; --panel:#1A2129; --ink:#E5EAF0; --muted:#97A3B2; --line:#2E3844;
+  --nodefill:#27313C; --accent:#3CC1B7; --forest:#8E99FF; --incoming:#F0A14E;
+  --bad:#FF6A5F; --good:#55C784; --codebg:#151B22; color-scheme:dark }
+
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:16px;line-height:1.5}
+.wrap{max-width:1240px;margin:0 auto;padding-block:28px 48px;
+  padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px))}
+header{display:grid;gap:6px;margin-bottom:22px;max-width:760px}
+.eyebrow{margin:0;font:600 12px/1 var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--accent)}
+h1{margin:0;font:700 clamp(28px,4vw,40px)/1.1 var(--f-display);text-wrap:balance}
+.lede{margin:0;color:var(--muted);max-width:65ch}
+.grid{display:grid;grid-template-columns:minmax(0,1fr) 350px;gap:20px;align-items:start}
+@media (max-width:920px){.grid{grid-template-columns:minmax(0,1fr)}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px}
+.stage{display:grid;gap:0;min-width:0}
+.stage-top{display:flex;flex-wrap:wrap;gap:12px 20px;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:1px solid var(--line)}
+.legend{display:flex;flex-wrap:wrap;gap:8px 16px;font-size:13px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.sw{width:18px;height:4px;border-radius:2px;display:inline-block}
+.treebtns{display:flex;gap:8px;flex-wrap:wrap}
+/* both views share one scale: content boxes grow in proportion to each tree's drawing width */
+.views{display:flex;align-items:stretch}
+.views>figure{flex-basis:0;flex-shrink:1;min-width:0;box-sizing:content-box}
+@media (max-width:640px){.views{flex-direction:column}.views>figure{flex:none!important}.ref{border-right:0!important;border-bottom:1px solid var(--line)}}
+figure{margin:0;min-width:0}
+.ref{padding:14px;border-right:1px solid var(--line);background:var(--codebg);display:flex;flex-direction:column;gap:10px}
+.ref svg{margin:0}
+.refnote{margin:0;font-size:13px;color:var(--muted)}
+.svgbox{padding:14px;display:flex;flex-direction:column;gap:10px}
+.svgbox svg{margin:0}
+.rnode circle{fill:var(--panel);stroke:var(--muted);stroke-width:1.5;transition:fill .25s,stroke .25s}
+.rnode text{fill:var(--muted);font:600 14px var(--f-mono);text-anchor:middle;dominant-baseline:central}
+.rnode.done circle{fill:var(--nodefill);stroke:var(--ink)}
+.rnode.done text{fill:var(--ink)}
+.rnode.inc circle{stroke:var(--incoming);stroke-width:2.5}
+.rnode.lvl circle{stroke:var(--accent);stroke-width:2.5}
+.rnode.cur circle{fill:var(--accent);stroke:var(--accent)}
+.rnode.cur text{fill:var(--panel)}
+.rnode .halo{fill:none;stroke:var(--accent);stroke-width:2;opacity:0}
+.rnode.cur .halo{opacity:.45}
+.rmeta{fill:var(--muted);font:11px var(--f-mono);dominant-baseline:central}
+.redge{stroke:var(--line);stroke-width:1.5}
+.redge.done{stroke:var(--muted)}
+svg{width:100%;height:auto;display:block;margin:0 auto}
+.order{display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:12px 16px;border-top:1px solid var(--line)}
+.lab{font:600 11px/1 var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+#chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font:600 13px/1 var(--f-mono);width:28px;height:28px;display:grid;place-items:center;border-radius:50%;border:1.5px solid var(--line);color:var(--muted)}
+.chip.done{background:var(--nodefill);border-color:var(--muted);color:var(--ink)}
+.chip.cur{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent);color:var(--ink)}
+.side{display:grid;gap:16px;min-width:0}
+.step{padding:18px;display:grid;gap:10px}
+.navbar{display:grid;gap:10px;padding-bottom:14px;margin-bottom:4px;border-bottom:1px solid var(--line)}
+.stepnum{font:600 12px/1 var(--f-mono);color:var(--muted);letter-spacing:.06em;text-transform:uppercase}
+.step h2{margin:0;font:600 21px/1.2 var(--f-display);text-wrap:balance}
+.step p{margin:0;min-height:7.5em}
+.controls{display:flex;gap:8px;flex-wrap:wrap}
+button{font:600 14px/1 var(--f-body);color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:9px 13px;cursor:pointer}
+button:hover:not(:disabled){border-color:var(--muted)}
+button:disabled{opacity:.4;cursor:default}
+button.primary{background:var(--accent);border-color:var(--accent);color:var(--panel)}
+button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+input[type=range]{width:100%;accent-color:var(--accent)}
+.code{padding:14px 0;overflow-x:auto}
+.code .lab{padding:0 16px 10px;display:block}
+.code ol{margin:0;padding:0;list-style:none;font:13px/1.75 var(--f-mono);counter-reset:ln}
+.code li{padding:0 16px;white-space:pre;color:var(--muted);counter-increment:ln;border-left:3px solid transparent}
+.code li::before{content:counter(ln);display:inline-block;width:2.2em;opacity:.5}
+.code li.on{background:var(--codebg);color:var(--ink);border-left-color:var(--accent)}
+.notes{padding:16px 18px;font-size:14px;color:var(--muted)}
+.notes h3{margin:0 0 8px;font:600 15px/1.2 var(--f-display);color:var(--ink)}
+.notes ul{margin:0;padding-left:18px;display:grid;gap:4px}
+/* svg */
+.edge{stroke:var(--muted);stroke-width:1.6}
+.edge.pend{stroke-dasharray:4 4}
+.node circle{fill:var(--panel);stroke:var(--ink);stroke-width:1.6}
+.node.done circle{fill:var(--nodefill)}
+.node.pend circle{fill:var(--panel);stroke-dasharray:4 3;stroke:var(--muted)}
+.node.inc circle{stroke:var(--incoming);stroke-width:2.2;fill-opacity:.8}
+.node.cur circle{stroke:var(--accent);stroke-width:3}
+.node text{fill:var(--ink);font:600 14px var(--f-mono);text-anchor:middle;dominant-baseline:central}
+.node.pend text{fill:var(--muted)}
+.olab{fill:var(--muted);font:12px var(--f-mono);text-anchor:middle;paint-order:stroke;stroke:var(--panel);stroke-width:4px}
+.alab{fill:var(--accent);font:600 12px var(--f-mono);text-anchor:middle;paint-order:stroke;stroke:var(--panel);stroke-width:4px}
+.ctr{fill:none;stroke-width:4;stroke-linecap:round;stroke-linejoin:round;opacity:.75}
+.gapline{stroke-width:1.6}
+.parkbox{fill:none;stroke:var(--muted);stroke-width:1.2;stroke-dasharray:3 4;opacity:.8}
+.parktext{fill:var(--muted);font:11px var(--f-mono)}
+.gaptext{font:600 12px var(--f-mono);text-anchor:middle;paint-order:stroke;stroke:var(--panel);stroke-width:4px}
+.axis line{stroke:var(--line)}
+.axis text{fill:var(--muted);font:11px var(--f-mono);text-anchor:middle}
+.fade{transition:opacity .25s}
+@media (prefers-reduced-motion: reduce){.fade{transition:none}}
+</style>
+
+<div class="wrap">
+  <header>
+    <p class="eyebrow">Tree drawing · Reingold &amp; Tilford, 1981</p>
+    <h1>How Reingold–Tilford lays out a tree</h1>
+    <p class="lede">The algorithm draws each subtree by itself, then pushes sibling subtrees together until their facing outlines (their <em>contours</em>) are at least one unit apart on every level. Step through it on a lopsided 15-node example.</p>
+  </header>
+
+  <main class="grid">
+    <section class="card stage">
+      <div class="stage-top">
+        <div class="legend" aria-label="Legend">
+          <span><i class="sw" style="background:var(--forest)"></i>Right contour of subtrees already placed</span>
+          <span><i class="sw" style="background:var(--incoming)"></i>Left contour of the subtree being added</span>
+          <span><i class="sw" style="height:12px;width:16px;border:1.2px dashed var(--muted);background:none;border-radius:3px"></i>Waiting for parent: arranged internally, not yet placed under its parent</span>
+        </div>
+        <div class="treebtns">
+          <button id="btnEx" hidden>Back to example tree</button>
+          <button id="btnRand">Random tree</button>
+        </div>
+      </div>
+      <div class="views">
+        <figure class="ref">
+          <figcaption class="lab">Original tree</figcaption>
+          <svg id="refsvg" role="img" aria-label="Original tree with the node of the current step highlighted"></svg>
+          <p class="refnote" id="refnote"></p>
+        </figure>
+        <figure class="svgbox">
+          <figcaption class="lab">Layout in progress</figcaption>
+          <svg id="svg" role="img" aria-label="Tree layout at the current step"></svg>
+        </figure>
+      </div>
+      <div class="order"><span class="lab">Post-order visit</span><div id="chips"></div></div>
+    </section>
+
+    <aside class="side">
+      <div class="card step">
+        <div class="navbar">
+        <div class="controls">
+          <button id="bRestart">Restart</button>
+          <button id="bPrev">Back</button>
+          <button id="bPlay" class="primary">Play</button>
+          <button id="bNext">Next</button>
+        </div>
+        <input type="range" id="scrub" min="0" max="1" value="0" aria-label="Step">
+        </div>
+        <div class="stepnum" id="stepnum"></div>
+        <h2 id="stitle"></h2>
+        <p id="sbody"></p>
+      </div>
+      <div class="card code">
+        <span class="lab">Pseudocode</span>
+        <ol id="code">
+<li>layout(v):</li>
+<li>  for each child c of v: layout(c)</li>
+<li>  if v is a leaf: return</li>
+<li>  place first child at offset 0</li>
+<li>  for each next child c:</li>
+<li>    put c 1 unit right of prev sibling</li>
+<li>    walk contours down, level by level</li>
+<li>    shift c right by the worst overlap</li>
+<li>  center v over first and last child</li>
+<li>second pass, from the root down:</li>
+<li>  x(c) = x(parent) + offset(c)</li>
+        </ol>
+      </div>
+      <div class="card notes">
+        <h3>What the layout guarantees</h3>
+        <ul>
+          <li>Nodes at the same depth share one horizontal line.</li>
+          <li>Children keep their left-to-right order.</li>
+          <li>Each parent is centered over its first and last child.</li>
+          <li>Nodes on a level are at least 1 unit apart.</li>
+          <li>A subtree is drawn the same way wherever it appears.</li>
+        </ul>
+      </div>
+    </aside>
+  </main>
+</div>
+
+<script>
+const SEP = 1, GAP = 1.5, UNIT = 56, LEVEL = 80, R = 17, PADX = 40, PADY = 34;
+const EXAMPLE = {id:'A',children:[
+  {id:'B'},
+  {id:'C',children:[{id:'F'},{id:'G',children:[{id:'J',children:[{id:'N'},{id:'O'}]}]}]},
+  {id:'D'},
+  {id:'E',children:[{id:'H',children:[{id:'K'},{id:'L'},{id:'M'}]},{id:'I'}]}
+]};
+
+const fmt = x => { const r = Math.round(x*100)/100; return String(Object.is(r,-0)?0:r).replace('-','−'); };
+const sgn = x => (x >= 0 ? '+' : '−') + fmt(Math.abs(x));
+const listText = a => a.length <= 1 ? a.join('') : a.slice(0,-1).join(', ') + ' and ' + a[a.length-1];
+
+/* ---------- build all steps ---------- */
+function build(def){
+  const N = {}, post = [];
+  (function walk(n, p, d){
+    N[n.id] = {id:n.id, parent:p, depth:d, children:(n.children||[]).map(c=>c.id)};
+    (n.children||[]).forEach(c => walk(c, n.id, d+1));
+    post.push(n.id);
+  })(def, null, 0);
+  const maxD = Math.max(...Object.values(N).map(n=>n.depth));
+  const off = {}, done = new Set(), steps = [];
+  let pieces = [], active = null;
+
+  const rel = (root, ax, out) => { out[root] = ax; N[root].children.forEach(c => rel(c, ax + off[c], out)); return out; };
+  const subtreeIds = r => Object.keys(rel(r, 0, {}));
+
+  function activeUnit(){
+    const m = {};
+    active.placed.forEach(c => rel(c, active.rel[c], m));
+    const f = active.placed[0], l = active.placed[active.placed.length-1];
+    m[active.v] = (active.rel[f] + active.rel[l]) / 2;
+    return m;
+  }
+  let parked = [];
+  function layoutUnits(){
+    const units = []; parked = [];
+    for (const r of pieces){
+      if (active && active.placed.includes(r)){ if (r === active.placed[0]) units.push(activeUnit()); continue; }
+      const m = rel(r, 0, {});
+      units.push(m); parked.push(Object.keys(m));
+    }
+    const pos = {}; let cur = 0;
+    for (const u of units){
+      const xs = Object.values(u), mn = Math.min(...xs), mx = Math.max(...xs), s = cur - mn;
+      for (const id in u) pos[id] = u[id] + s;
+      cur = mx + s + GAP;
+    }
+    return pos;
+  }
+  function snap(info){
+    steps.push(Object.assign({
+      pos: layoutUnits(), parked: parked, done: new Set(done), activeV: active ? active.v : null,
+      offsets: Object.assign({}, off), chipDone: new Set(done), incoming: new Set()
+    }, info));
+  }
+  function contour(c){
+    const before = active.placed.slice(0, active.placed.indexOf(c));
+    const L = {}, M = {};
+    before.forEach(p => rel(p, active.rel[p], L));
+    rel(c, active.rel[c], M);
+    const rmax = {}, lmin = {};
+    for (const id in L){ const d = N[id].depth; if (!(d in rmax) || L[id] > L[rmax[d]]) rmax[d] = id; }
+    for (const id in M){ const d = N[id].depth; if (!(d in lmin) || M[id] < M[lmin[d]]) lmin[d] = id; }
+    const depths = Object.keys(lmin).map(Number).filter(d => d in rmax).sort((a,b)=>a-b);
+    const pairs = depths.map(d => ({d, a:rmax[d], b:lmin[d], gap: M[lmin[d]] - L[rmax[d]]}));
+    const shift = Math.max(0, ...pairs.map(p => SEP - p.gap));
+    const byDepth = o => Object.keys(o).map(Number).sort((a,b)=>a-b).map(d => o[d]);
+    return {right: byDepth(rmax), left: byDepth(lmin), pairs, shift, multi: before.length > 1};
+  }
+
+  // step 0: naive drawing of the input
+  const naive = {}, rowCount = {};
+  const bfs = [def.id];
+  for (let i = 0; i < bfs.length; i++){ const id = bfs[i]; const d = N[id].depth; rowCount[d] = (rowCount[d]||0); naive[id] = rowCount[d]++; bfs.push(...N[id].children); }
+  steps.push({pos: naive, done: new Set(Object.keys(N)), activeV:null, offsets:{}, chipDone:new Set(), incoming:new Set(),
+    title:'The input tree',
+    body:`Drawn the naive way, each level packed from the left, parents don't sit over their children and the shape is hard to read. Reingold–Tilford fixes this in two passes: a bottom-up pass that builds every subtree and pushes siblings apart using contours, then a top-down pass that turns relative offsets into final x-coordinates.`,
+    line:0});
+
+  for (const v of post){
+    const kids = N[v].children;
+    if (!kids.length){
+      pieces.push(v); done.add(v);
+      snap({title:`Leaf ${v}`, body:`Post-order reaches ${v}. A leaf is a one-node subtree, so its left and right contours are both just ${v}. Nothing to arrange, and no position is assigned: ${v} only gets an offset once its parent is processed. Until then it waits in a dashed "waiting for parent" box, and its x on screen is just a display slot (waiting subtrees lined up left to right, ${GAP} units apart), not something the algorithm computed.`, line:3, current:v});
+      continue;
+    }
+    active = {v, placed:[kids[0]], rel:{[kids[0]]:0}};
+    snap({title:`Arrange the children of ${v}`,
+      body:`All ${kids.length} subtrees under ${v} (${listText(kids)}) each have their own nodes arranged, but none has been placed under ${v} yet. Keep the first one, ${kids[0]}, where it is, at offset 0. ${v} is drawn dashed until its own position is fixed.`,
+      line:4, current:v});
+    for (let i = 1; i < kids.length; i++){
+      const c = kids[i], prev = kids[i-1];
+      active.placed.push(c);
+      active.rel[c] = active.rel[prev] + SEP;
+      const inc = new Set(subtreeIds(c));
+      snap({title:`Slide ${c} in next to ${prev}`,
+        body:`Put ${c}'s root exactly 1 unit (the minimum separation) right of ${prev}. That is the closest it could ever be. Deeper levels of ${c} may now crowd or overlap the subtrees on its left.`,
+        line:6, current:v, incoming:inc});
+      let ct = contour(c);
+      const lv = ct.pairs.map(p => `level ${p.d} is ${fmt(p.gap)} apart`);
+      const worst = ct.pairs.reduce((a,b) => (SEP-b.gap) > (SEP-a.gap) ? b : a);
+      snap({title:`Compare contours of ${c} and its left side`,
+        body:`Walk down the blue right contour${ct.multi ? ` of everything placed so far (not just ${prev})` : ''} and ${c}'s orange left contour together: ${listText(lv)}. ` +
+          (ct.shift > 0 ? `Level ${worst.d} is the tightest and needs ${fmt(ct.shift)} more unit${ct.shift===1?'':'s'}.` : `Every shared level already has at least 1 unit of room, so ${c} stays put.`),
+        line:7, current:v, incoming:inc, contour:ct});
+      if (ct.shift > 0){
+        const sh = ct.shift;
+        active.rel[c] += sh;
+        ct = contour(c);
+        snap({title:`Shift ${c} right by ${fmt(sh)}`,
+          body:`Move ${c}'s whole subtree right. Now every shared level is at least 1 unit apart. Only one number changes here: the offset stored on ${c}. Its descendants are stored relative to ${c}, so they move for free.`,
+          line:8, current:v, incoming:inc, contour:ct});
+      }
+    }
+    const f = kids[0], l = kids[kids.length-1];
+    const mid = (active.rel[f] + active.rel[l]) / 2;
+    kids.forEach(c => off[c] = active.rel[c] - mid);
+    const gaps = kids.slice(1).map((c,i) => active.rel[c] - active.rel[kids[i]]);
+    const uneven = kids.length > 2 && gaps.some(g => Math.abs(g - gaps[0]) > 1e-9);
+    const at = pieces.indexOf(f);
+    pieces = pieces.filter(p => !kids.includes(p));
+    pieces.splice(at, 0, v);
+    done.add(v); active = null;
+    snap({title:`Center ${v} over its children`,
+      body:`${v} goes halfway between its first child ${f} and last child ${l}. Each child now stores its offset from ${v}: ${listText(kids.map(c => `${c} ${sgn(off[c])}`))}. The subtree rooted at ${v} is now one rigid unit.` +
+        (uneven ? ` Notice the middle child${kids.length>3?'ren':''} stay where they landed rather than being spaced evenly. That is a known quirk of the original algorithm; Walker's 1990 extension spreads them out.` : ''),
+      line:9, current:v});
+  }
+
+  // second pass
+  const root = def.id, R0 = rel(root, 0, {});
+  const rootX = -Math.min(...Object.values(R0));
+  const abs = {};
+  for (let d = 0; d <= maxD; d++){
+    const ids = Object.keys(N).filter(id => N[id].depth === d);
+    ids.forEach(id => abs[id] = d === 0 ? rootX : abs[N[id].parent] + off[id]);
+    const eqs = ids.slice(0,4).map(id => `x(${id}) = ${fmt(abs[N[id].parent])} ${off[id]>=0?'+':'−'} ${fmt(Math.abs(off[id]))} = ${fmt(abs[id])}`);
+    snap({level:d, title: d === 0 ? `Second pass: fix the root at x = ${fmt(rootX)}` : `Level ${d}: add each offset to the parent's x`,
+      body: d === 0 ? `The first pass only stored offsets relative to parents. Now walk top-down. Give the root ${root} an x so the leftmost node lands at 0; here that is x = ${fmt(rootX)}.`
+        : `${eqs.join('; ')}${ids.length > 4 ? '; and so on' : ''}. The drawing doesn't move in this pass, only the numbers become absolute.`,
+      line:11, abs:Object.assign({}, abs), phase2:true, chipDone:new Set()});
+  }
+  snap({title:'Finished layout',
+    body:`Every node has its final x. Parents are centered, each level keeps at least 1 unit between nodes, and identical subtrees look identical. The real algorithm does all this in O(n) time: instead of recomputing contours, it keeps "threads", extra pointers from the bottom of a short contour to the next node down, so each comparison costs only the height of the shorter subtree.`,
+    line:0, abs:Object.assign({}, abs), phase2:true, final:true, chipDone:new Set(Object.keys(N))});
+
+  let maxX = 0;
+  steps.forEach(s => { for (const id in s.pos) maxX = Math.max(maxX, s.pos[id]); });
+  return {N, post, steps, maxX, maxD, finalMax: Math.max(...Object.values(abs))};
+}
+
+/* ---------- random tree ---------- */
+function randomTree(){
+  const n = 9 + Math.floor(Math.random()*7);
+  const nodes = [{children:[], depth:0}];
+  while (nodes.length < n){
+    const cand = nodes.filter(x => x.children.length < 3 && x.depth < 4);
+    const p = cand[Math.floor(Math.random()*cand.length)];
+    const c = {children:[], depth:p.depth+1}; p.children.push(c); nodes.push(c);
+  }
+  const q = [nodes[0]]; let k = 0;
+  for (let i = 0; i < q.length; i++){ q[i].id = String.fromCharCode(65 + k++); q.push(...q[i].children); }
+  const strip = x => x.children.length ? {id:x.id, children:x.children.map(strip)} : {id:x.id};
+  return strip(nodes[0]);
+}
+
+/* ---------- rendering ---------- */
+const NS = 'http://www.w3.org/2000/svg', svg = document.getElementById('svg');
+const $ = id => document.getElementById(id);
+const mk = (tag, attrs, parent) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); parent && parent.appendChild(e); return e; };
+const px = x => PADX + x*UNIT, py = d => PADY + d*LEVEL;
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+let S, idx = 0, disp = {}, raf = null, timer = null, E = {}, layers = {};
+
+function setup(def){
+  S = build(def);
+  svg.innerHTML = ''; disp = {}; E = {};
+  const W = PADX*2 + S.maxX*UNIT, H = PADY*2 + S.maxD*LEVEL + 34;
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  ['axis','edges','over','nodes','labs'].forEach(k => layers[k] = mk('g', {class: k==='axis' ? 'axis fade' : k==='over' ? 'fade' : ''}, svg));
+  const ay = py(S.maxD) + R + 30;
+  for (let x = 0; x <= Math.ceil(S.finalMax); x++){
+    mk('line', {x1:px(x), x2:px(x), y1:PADY - R - 6, y2:ay - 12, 'stroke-dasharray':'2 5'}, layers.axis);
+    mk('text', {x:px(x), y:ay}, layers.axis).textContent = x;
+  }
+  for (const id in S.N){
+    const n = S.N[id];
+    const e = {};
+    if (n.parent) e.edge = mk('line', {class:'edge'}, layers.edges);
+    e.g = mk('g', {class:'node'}, layers.nodes);
+    mk('circle', {r:R}, e.g);
+    mk('text', {}, e.g).textContent = id;
+    e.olab = mk('text', {class:'olab'}, layers.labs);
+    e.alab = mk('text', {class:'alab'}, layers.labs);
+    E[id] = e;
+  }
+  mainW = W;
+  setupRef();
+  const views = document.querySelector('.views');
+  document.querySelector('.ref').style.flexGrow = refW;
+  document.querySelector('.svgbox').style.flexGrow = mainW;
+  views.style.maxWidth = (refW + mainW + 57) + 'px';
+  $('refsvg').style.maxWidth = refW + 'px';
+  $('chips').innerHTML = S.post.map(id => `<span class="chip" data-id="${id}">${id}</span>`).join('');
+  $('scrub').max = S.steps.length - 1;
+  show(0, false);
+}
+
+/* original tree: drawn at the same on-screen scale as the layout view */
+let RE = {}, refW = 1, mainW = 1;
+function setupRef(){
+  const rs = $('refsvg'); rs.innerHTML = ''; RE = {};
+  // same naive drawing as the first frame: each level packed from the left, in breadth-first order
+  const X = S.steps[0].pos;
+  const cols = Math.max(...Object.values(X));
+  const U = UNIT, L = LEVEL, r = R, P = PADY;
+  const W = P*2 + cols*U, H = P*2 + S.maxD*L;
+  rs.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  refW = W;
+  const gx = id => P + X[id]*U, gy = id => P + S.N[id].depth*L;
+  const ge = mk('g', {}, rs), gn = mk('g', {}, rs);
+  for (const id in S.N){
+    const p = S.N[id].parent;
+    const e = {};
+    if (p){
+      const dx = gx(id)-gx(p), dy = gy(id)-gy(p), len = Math.hypot(dx,dy);
+      e.edge = mk('line', {class:'redge', x1:gx(p)+dx/len*r, y1:gy(p)+dy/len*r, x2:gx(id)-dx/len*r, y2:gy(id)-dy/len*r}, ge);
+    }
+    e.g = mk('g', {class:'rnode', transform:`translate(${gx(id)},${gy(id)})`}, gn);
+    mk('circle', {class:'halo', r:r+5}, e.g);
+    mk('circle', {r}, e.g);
+    mk('text', {}, e.g).textContent = id;
+    RE[id] = e;
+  }
+}
+function updateRef(st){
+  const lvl = st.phase2 ? (st.final ? Infinity : st.level) : -1;
+  for (const id in RE){
+    const n = S.N[id], cl = RE[id].g.classList;
+    const doneHere = st.phase2 ? n.depth <= lvl : st.chipDone.has(id);
+    cl.toggle('done', doneHere);
+    cl.toggle('cur', st.current === id);
+    cl.toggle('inc', st.incoming.has(id));
+    cl.toggle('lvl', !!(st.phase2 && !st.final && n.depth === lvl));
+    if (RE[id].edge) RE[id].edge.classList.toggle('done', !!doneHere && !!(st.phase2 || st.chipDone.has(n.parent) || st.current === n.parent));
+  }
+  let note;
+  if (!idx) note = 'The input, drawn naively like the first frame. A node fills in once its subtree has been arranged.';
+  else if (st.phase2) note = st.final ? 'All nodes have final coordinates.' : `Computing x for every node on level ${st.level}.`;
+  else if (st.incoming.size) note = `Working on ${st.current}; its child subtree ${[...st.incoming].find(i => S.N[i].parent === st.current)} is being fitted in.`;
+  else note = `Working on ${st.current}.`;
+  $('refnote').textContent = note;
+}
+
+function paint(st){
+  for (const id in E){
+    const e = E[id], p = disp[id], n = S.N[id];
+    const vis = !!p;
+    e.g.style.display = vis ? '' : 'none';
+    if (vis) e.g.setAttribute('transform', `translate(${p.x},${p.y})`);
+    if (e.edge){
+      const pp = disp[n.parent];
+      const show = vis && pp && (st.done.has(n.parent) || st.activeV === n.parent);
+      e.edge.style.display = show ? '' : 'none';
+      if (show){
+        const dx = p.x - pp.x, dy = p.y - pp.y, L = Math.hypot(dx,dy) || 1;
+        e.edge.setAttribute('x1', pp.x + dx/L*R); e.edge.setAttribute('y1', pp.y + dy/L*R);
+        e.edge.setAttribute('x2', p.x - dx/L*R);  e.edge.setAttribute('y2', p.y - dy/L*R);
+        e.edge.classList.toggle('pend', st.activeV === n.parent);
+      }
+      const o = st.offsets[id];
+      const showO = show && o !== undefined && !st.final && !st.contour;
+      e.olab.style.display = showO ? '' : 'none';
+      if (showO){
+        const side = p.x >= pp.x ? 1 : -1;
+        e.olab.setAttribute('x', (p.x + pp.x)/2 + side*16); e.olab.setAttribute('y', (p.y + pp.y)/2 + 4);
+        e.olab.textContent = sgn(o);
+      }
+    } else e.olab.style.display = 'none';
+    const a = st.abs && st.abs[id];
+    const showA = vis && a !== undefined;
+    e.alab.style.display = showA ? '' : 'none';
+    if (showA){ e.alab.setAttribute('x', p.x); e.alab.setAttribute('y', p.y + R + 15); e.alab.textContent = 'x=' + fmt(a); }
+  }
+}
+
+function drawOverlay(st){
+  const g = layers.over; g.innerHTML = '';
+  if (!st.phase2) for (const ids of (st.parked || [])){
+    const xs = ids.map(id => px(st.pos[id])), ys = ids.map(id => py(S.N[id].depth));
+    const x0 = Math.min(...xs) - R - 9, x1 = Math.max(...xs) + R + 9, y0 = Math.min(...ys) - R - 9, y1 = Math.max(...ys) + R + 9;
+    mk('rect', {class:'parkbox', x:x0, y:y0, width:x1 - x0, height:y1 - y0, rx:10}, g);
+    const t = mk('text', {class:'parktext', x:x0 + 2, y:y0 - 18}, g);
+    mk('tspan', {x:x0 + 2, dy:0}, t).textContent = 'waiting';
+    mk('tspan', {x:x0 + 2, dy:12}, t).textContent = 'for parent';
+  }
+  if (!st.contour) return;
+  const P = id => ({x:px(st.pos[id]), y:py(S.N[id].depth)});
+  const line = (ids, dx, color) => {
+    const pts = ids.map(id => { const p = P(id); return `${p.x+dx},${p.y}`; });
+    if (ids.length === 1){ const p = P(ids[0]); pts.unshift(`${p.x+dx},${p.y-8}`); pts.push(`${p.x+dx},${p.y+8}`); }
+    mk('polyline', {class:'ctr', points:pts.join(' '), stroke:color}, g);
+  };
+  line(st.contour.right, R+5, 'var(--forest)');
+  line(st.contour.left, -(R+5), 'var(--incoming)');
+  for (const pr of st.contour.pairs){
+    const a = P(pr.a), b = P(pr.b), gap = st.pos[pr.b] - st.pos[pr.a];
+    const ok = gap >= SEP - 1e-9, col = ok ? 'var(--good)' : 'var(--bad)';
+    const y = a.y + R + 11;
+    mk('line', {class:'gapline', x1:a.x, x2:b.x, y1:y, y2:y, stroke:col}, g);
+    [a.x, b.x].forEach(x => mk('line', {class:'gapline', x1:x, x2:x, y1:y-4, y2:y+4, stroke:col}, g));
+    const t = mk('text', {class:'gaptext', x:(a.x+b.x)/2, y:y+16, fill:col}, g);
+    t.textContent = ok ? `gap ${fmt(gap)} ✓` : `gap ${fmt(gap)} · need +${fmt(SEP-gap)}`;
+  }
+}
+
+function show(i, animate = true){
+  idx = Math.max(0, Math.min(S.steps.length - 1, i));
+  const st = S.steps[idx];
+  $('stepnum').textContent = `Step ${idx} of ${S.steps.length - 1}` + (st.phase2 ? ' · second pass' : idx ? ' · first pass' : '');
+  $('stitle').textContent = st.title;
+  $('sbody').textContent = st.body;
+  [...$('code').children].forEach((li, k) => li.classList.toggle('on', k + 1 === st.line || (st.line === 11 && st.phase2 && k === 9)));
+  document.querySelectorAll('.chip').forEach(c => {
+    c.classList.toggle('done', st.chipDone.has(c.dataset.id));
+    c.classList.toggle('cur', st.current === c.dataset.id);
+  });
+  updateRef(st);
+  $('scrub').value = idx;
+  $('bPrev').disabled = idx === 0;
+  $('bNext').disabled = idx === S.steps.length - 1;
+  layers.axis.style.opacity = st.phase2 ? 1 : 0;
+
+  for (const id in E){
+    const cl = E[id].g.classList;
+    cl.toggle('done', st.done.has(id));
+    cl.toggle('pend', st.activeV === id);
+    cl.toggle('inc', st.incoming.has(id));
+    cl.toggle('cur', st.current === id && st.done.has(id));
+  }
+  const target = {};
+  for (const id in st.pos) target[id] = {x:px(st.pos[id]), y:py(S.N[id].depth)};
+  layers.over.style.opacity = 0;
+  cancelAnimationFrame(raf);
+  const from = {};
+  for (const id in target) from[id] = disp[id] || target[id];
+  const dur = animate && !reduce ? 480 : 0, t0 = performance.now();
+  const finish = () => { drawOverlay(st); layers.over.style.opacity = 1; };
+  const frame = t => {
+    const k = dur ? Math.min(1, (t - t0)/dur) : 1, e = 1 - Math.pow(1 - k, 3);
+    disp = {};
+    for (const id in target) disp[id] = {x: from[id].x + (target[id].x - from[id].x)*e, y: from[id].y + (target[id].y - from[id].y)*e};
+    paint(st);
+    if (k < 1) raf = requestAnimationFrame(frame); else finish();
+  };
+  if (dur) raf = requestAnimationFrame(frame); else frame(t0);
+}
+
+function stop(){ clearInterval(timer); timer = null; $('bPlay').textContent = 'Play'; }
+function play(){
+  if (timer) return stop();
+  if (idx >= S.steps.length - 1) show(0);
+  $('bPlay').textContent = 'Pause';
+  timer = setInterval(() => { if (idx >= S.steps.length - 1) return stop(); show(idx + 1); }, 1800);
+}
+$('bPlay').onclick = play;
+$('bNext').onclick = () => { stop(); show(idx + 1); };
+$('bPrev').onclick = () => { stop(); show(idx - 1); };
+$('bRestart').onclick = () => { stop(); show(0); };
+$('scrub').oninput = e => { stop(); show(+e.target.value, false); };
+$('btnEx').onclick = () => { stop(); $('btnEx').hidden = true; $('btnRand').textContent = 'Random tree'; setup(EXAMPLE); };
+$('btnRand').onclick = () => { stop(); $('btnEx').hidden = false; $('btnRand').textContent = 'Another random tree'; setup(randomTree()); };
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT') return;
+  if (e.key === 'ArrowRight'){ stop(); show(idx + 1); e.preventDefault(); }
+  else if (e.key === 'ArrowLeft'){ stop(); show(idx - 1); e.preventDefault(); }
+  else if (e.key === ' ' && e.target.tagName !== 'BUTTON'){ play(); e.preventDefault(); }
+});
+setup(EXAMPLE);
+</script>
+
+</body></html>

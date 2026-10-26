@@ -1,0 +1,545 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Tree of Animals DOI Explorer</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,500;0,600;1,400;1,500&family=Public+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<style>
+/* Layout: control strip on top; the tree gets the wide column, the focus "specimen card" sits beside it */
+:root{
+  --bg:#F1F4F2; --panel:#FFFFFF; --ink:#1B2420; --muted:#5C6964; --line:#D2DAD5; --soft:#E6ECE8;
+  --accent:#1D6B55;
+  --p-chordata:#3568AE; --p-arthropoda:#B0751A; --p-mollusca:#8B4BA6; --p-echinodermata:#C14B45; --p-cnidaria:#22918F;
+  --f-display:"Spectral", Georgia, "Times New Roman", serif;
+  --f-body:"Public Sans", "Segoe UI", system-ui, sans-serif;
+  --f-mono:"IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#111715; --panel:#18201D; --ink:#E4EBE7; --muted:#97A59F; --line:#2C3833; --soft:#212B27;
+  --accent:#4FC39F;
+  --p-chordata:#77A6EA; --p-arthropoda:#E3A64A; --p-mollusca:#C18AE0; --p-echinodermata:#F08680; --p-cnidaria:#4DCBC6; color-scheme:dark }}
+:root[data-theme="dark"]{
+  --bg:#111715; --panel:#18201D; --ink:#E4EBE7; --muted:#97A59F; --line:#2C3833; --soft:#212B27;
+  --accent:#4FC39F;
+  --p-chordata:#77A6EA; --p-arthropoda:#E3A64A; --p-mollusca:#C18AE0; --p-echinodermata:#F08680; --p-cnidaria:#4DCBC6; color-scheme:dark }
+
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.5}
+.wrap{max-width:1440px;margin:0 auto;padding-block:26px 48px;
+  padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px));display:grid;gap:18px}
+header{display:grid;gap:6px;max-width:780px}
+.eyebrow{margin:0;font:500 12px/1 var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--accent)}
+h1{margin:0;font:600 clamp(28px,3.6vw,40px)/1.1 var(--f-display);text-wrap:balance}
+.lede{margin:0;color:var(--muted);max-width:68ch}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px}
+.toolbar{display:flex;flex-wrap:wrap;gap:14px 26px;align-items:center;padding:14px 16px}
+.field{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.field label,.lab{font:500 11px/1 var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+input[type=search]{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:7px 10px;width:230px;max-width:100%}
+input[type=range]{accent-color:var(--accent);width:170px}
+.kval{font:500 14px var(--f-mono);min-width:2ch;font-variant-numeric:tabular-nums}
+.toggle{display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer}
+.toggle input{accent-color:var(--accent);width:16px;height:16px}
+button{font:500 14px/1 var(--f-body);color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px 12px;cursor:pointer}
+button:hover{border-color:var(--muted)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.count{margin-left:auto;font:13px var(--f-mono);color:var(--muted);font-variant-numeric:tabular-nums}
+.main{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:18px;align-items:start}
+@media (max-width:1100px){.main{grid-template-columns:minmax(0,1fr)}}
+.treebox{overflow-x:auto;padding:8px 0;min-width:0}
+#tree{display:block}
+.side{display:grid;gap:16px;min-width:0;position:sticky;top:calc(env(safe-area-inset-top, 0px) + 12px)}
+@media (max-width:1100px){.side{position:static}}
+.spec{padding:18px;display:grid;gap:10px}
+.rank{display:flex;align-items:center;gap:8px;font:500 12px/1 var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.rank i{width:10px;height:10px;border-radius:50%;display:inline-block}
+.spec h2{margin:0;font:600 26px/1.15 var(--f-display);text-wrap:balance}
+.spec .sci{margin:0;font:italic 500 17px/1.3 var(--f-display);color:var(--muted)}
+.spec .sci.upright{font-style:normal}
+.crumbs{display:flex;flex-wrap:wrap;gap:4px 2px;font-size:13px;align-items:center}
+.crumbs button,.chips button{padding:4px 8px;font-size:13px;border-radius:6px}
+.crumbs span{color:var(--muted);padding:0 2px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.sub{display:grid;gap:6px}
+.doistat{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;font-size:14px}
+.doistat dt{color:var(--muted)}
+.doistat dd{margin:0;font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.how{padding:16px 18px;font-size:14px;color:var(--muted);display:grid;gap:8px}
+.how h3{margin:0;font:600 17px/1.2 var(--f-display);color:var(--ink)}
+.how p{margin:0}
+.formula{font:13px/1.7 var(--f-mono);color:var(--ink);background:var(--soft);border-radius:8px;padding:8px 10px;overflow-wrap:anywhere}
+.legend{display:grid;gap:6px;font-size:13px}
+.legend div{display:flex;align-items:center;gap:8px}
+.legend svg{flex:none}
+/* tree */
+.link{fill:none;stroke:var(--line);stroke-width:1.4}
+.link.path{stroke:var(--muted);stroke-width:2}
+.node{cursor:pointer}
+.node .dot{stroke:var(--panel);stroke-width:1.5}
+.node .halo{fill:none;stroke:var(--accent);stroke-width:2.5}
+.node text{fill:var(--ink);font-family:var(--f-body);dominant-baseline:central;paint-order:stroke;stroke:var(--bg);stroke-width:4px;stroke-linejoin:round}
+.node .lbl .sp{font-family:var(--f-display);font-style:italic;fill:var(--muted)}
+.node .lbl .dv{font-family:var(--f-mono);fill:var(--accent)}
+.node .badge{font-family:var(--f-mono);fill:var(--muted)}
+.node:hover .dot{stroke:var(--ink)}
+.node:focus{outline:none}
+.node:focus-visible .dot{stroke:var(--accent);stroke-width:3}
+.node.focus text{font-weight:600}
+</style>
+
+<div class="wrap">
+  <header>
+    <p class="eyebrow">Degree-of-interest tree · Furnas 1986, Card &amp; Nation 2002</p>
+    <h1>Exploring the animal kingdom by interest</h1>
+    <p class="lede"><span id="ntaxa">151</span> animal taxa, from kingdom down to species. Click any node to make it the focus. Every node's degree of interest (DOI) is recomputed from its distance to the focus, the tree is laid out again, and nodes below the threshold are hidden.</p>
+  </header>
+
+  <div class="card toolbar">
+    <div class="field">
+      <label for="search">Jump to</label>
+      <input type="search" id="search" list="taxa" placeholder="Lion, Felidae, Insects…" autocomplete="off">
+      <datalist id="taxa"></datalist>
+    </div>
+    <div class="field">
+      <label for="k">Detail k</label>
+      <input type="range" id="k" min="0" max="10" step="2" value="4">
+      <span class="kval" id="kval">4</span>
+    </div>
+    <label class="toggle"><input type="checkbox" id="showdoi"> Show DOI values</label>
+    <button id="reset">Focus on root</button>
+    <span class="count" id="count"></span>
+  </div>
+
+  <div class="main">
+    <section class="card treebox" id="treebox" aria-label="Taxonomy tree">
+      <svg id="tree" role="group" aria-label="Animal taxonomy tree; activate a node to focus it"></svg>
+    </section>
+
+    <aside class="side">
+      <div class="card spec" aria-live="polite">
+        <div class="rank" id="frank"></div>
+        <h2 id="fname"></h2>
+        <p class="sci" id="fsci"></p>
+        <div class="sub"><span class="lab">Lineage</span><div class="crumbs" id="crumbs"></div></div>
+        <div class="sub" id="kidsbox"><span class="lab" id="kidslab">Contains</span><div class="chips" id="kids"></div></div>
+        <dl class="doistat">
+          <dt>Focus DOI</dt><dd id="sdoi"></dd>
+          <dt>Cut-off</dt><dd id="scut"></dd>
+          <dt>Shown</dt><dd id="sshown"></dd>
+        </dl>
+      </div>
+      <div class="card how">
+        <h3>How interest is scored</h3>
+        <div class="formula">DOI(x) = API(x) − D(x, focus)</div>
+        <p><b>API</b>, the a-priori importance, is minus the depth: the kingdom scores 0, a species −5, so taxa near the root matter more by default. <b>D</b> is the number of edges between the node and the focus.</p>
+        <p>A node is drawn when DOI(x) ≥ DOI(focus) − k. Every ancestor of the focus ties with it, so the path to the root stays visible. Siblings always tie too, so a node's children appear or disappear together.</p>
+        <p>k moves in steps of 2 because every DOI has the same odd or even parity as the focus's; odd values would change nothing.</p>
+        <div class="legend">
+          <div><svg width="44" height="16" aria-hidden="true"><circle cx="8" cy="8" r="7" fill="var(--muted)"/><circle cx="25" cy="8" r="4.5" fill="var(--muted)"/><circle cx="38" cy="8" r="3" fill="var(--muted)"/></svg>Size and label weight follow DOI</div>
+          <div><svg width="44" height="16" aria-hidden="true"><text x="2" y="12" font-family="IBM Plex Mono, monospace" font-size="12" fill="var(--muted)">+12</text></svg>Descendants hidden below this node</div>
+          <div id="phyla"></div>
+        </div>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<script>
+/* Linnaean ranks, one per indent level: Kingdom, Phylum, Class, Order, Family, Species */
+const RAW = `
+Animalia|Animals
+ Chordata|Chordates
+  Mammalia|Mammals
+   Primates|Primates
+    Hominidae|Great apes
+     Homo sapiens|Human
+     Pan troglodytes|Chimpanzee
+     Pongo pygmaeus|Bornean orangutan
+    Cercopithecidae|Old World monkeys
+     Macaca mulatta|Rhesus macaque
+     Mandrillus sphinx|Mandrill
+   Carnivora|Carnivorans
+    Felidae|Cats
+     Panthera leo|Lion
+     Panthera tigris|Tiger
+     Felis catus|Domestic cat
+    Canidae|Dogs and foxes
+     Canis lupus|Gray wolf
+     Vulpes vulpes|Red fox
+    Ursidae|Bears
+     Ursus arctos|Brown bear
+     Ailuropoda melanoleuca|Giant panda
+   Artiodactyla|Hoofed mammals and whales
+    Bovidae|Cattle and antelopes
+     Bos taurus|Cattle
+     Bison bison|American bison
+    Giraffidae|Giraffes
+     Giraffa camelopardalis|Giraffe
+    Delphinidae|Oceanic dolphins
+     Tursiops truncatus|Bottlenose dolphin
+     Orcinus orca|Orca
+    Balaenopteridae|Rorquals
+     Balaenoptera musculus|Blue whale
+     Megaptera novaeangliae|Humpback whale
+   Rodentia|Rodents
+    Muridae|Mice and rats
+     Mus musculus|House mouse
+     Rattus norvegicus|Brown rat
+    Sciuridae|Squirrels
+     Sciurus carolinensis|Eastern gray squirrel
+    Castoridae|Beavers
+     Castor canadensis|North American beaver
+   Chiroptera|Bats
+    Vespertilionidae|Vesper bats
+     Myotis lucifugus|Little brown bat
+    Pteropodidae|Fruit bats
+     Pteropus medius|Indian flying fox
+  Aves|Birds
+   Passeriformes|Perching birds
+    Corvidae|Crows and jays
+     Corvus corax|Common raven
+     Cyanocitta cristata|Blue jay
+    Cardinalidae|Cardinals
+     Cardinalis cardinalis|Northern cardinal
+    Icteridae|New World blackbirds
+     Icterus galbula|Baltimore oriole
+   Accipitriformes|Hawks and eagles
+    Accipitridae|Hawks, eagles, kites
+     Haliaeetus leucocephalus|Bald eagle
+     Buteo jamaicensis|Red-tailed hawk
+    Pandionidae|Ospreys
+     Pandion haliaetus|Osprey
+   Strigiformes|Owls
+    Strigidae|True owls
+     Bubo virginianus|Great horned owl
+     Bubo scandiacus|Snowy owl
+   Sphenisciformes|Penguins
+    Spheniscidae|Penguins
+     Aptenodytes forsteri|Emperor penguin
+  Reptilia|Reptiles
+   Testudines|Turtles
+    Emydidae|Pond turtles
+     Malaclemys terrapin|Diamondback terrapin
+    Cheloniidae|Sea turtles
+     Chelonia mydas|Green sea turtle
+   Squamata|Lizards and snakes
+    Pythonidae|Pythons
+     Python bivittatus|Burmese python
+    Varanidae|Monitor lizards
+     Varanus komodoensis|Komodo dragon
+   Crocodilia|Crocodilians
+    Alligatoridae|Alligators and caimans
+     Alligator mississippiensis|American alligator
+  Amphibia|Amphibians
+   Anura|Frogs and toads
+    Ranidae|True frogs
+     Lithobates catesbeianus|American bullfrog
+    Dendrobatidae|Poison dart frogs
+     Phyllobates terribilis|Golden poison frog
+   Caudata|Salamanders
+    Ambystomatidae|Mole salamanders
+     Ambystoma mexicanum|Axolotl
+  Actinopterygii|Ray-finned fishes
+   Salmoniformes|Salmon and trout
+    Salmonidae|Salmonids
+     Salmo salar|Atlantic salmon
+     Oncorhynchus mykiss|Rainbow trout
+   Cypriniformes|Carps and minnows
+    Cyprinidae|Carps
+     Cyprinus carpio|Common carp
+    Danionidae|Danios
+     Danio rerio|Zebrafish
+  Chondrichthyes|Sharks and rays
+   Lamniformes|Mackerel sharks
+    Lamnidae|White sharks and makos
+     Carcharodon carcharias|Great white shark
+   Orectolobiformes|Carpet sharks
+    Rhincodontidae|Whale sharks
+     Rhincodon typus|Whale shark
+ Arthropoda|Arthropods
+  Insecta|Insects
+   Hymenoptera|Bees, wasps, ants
+    Apidae|Bees
+     Apis mellifera|Western honey bee
+    Formicidae|Ants
+     Atta cephalotes|Leafcutter ant
+   Lepidoptera|Butterflies and moths
+    Nymphalidae|Brush-footed butterflies
+     Danaus plexippus|Monarch butterfly
+    Bombycidae|Silk moths
+     Bombyx mori|Domestic silk moth
+   Coleoptera|Beetles
+    Coccinellidae|Ladybirds
+     Coccinella septempunctata|Seven-spot ladybird
+    Lucanidae|Stag beetles
+     Lucanus cervus|European stag beetle
+   Diptera|True flies
+    Drosophilidae|Fruit flies
+     Drosophila melanogaster|Common fruit fly
+    Culicidae|Mosquitoes
+     Aedes aegypti|Yellow fever mosquito
+  Arachnida|Arachnids
+   Araneae|Spiders
+    Theridiidae|Cobweb spiders
+     Latrodectus hesperus|Western black widow
+    Salticidae|Jumping spiders
+     Maratus volans|Peacock spider
+   Scorpiones|Scorpions
+    Buthidae|Bark scorpions
+     Leiurus quinquestriatus|Deathstalker
+  Malacostraca|Crabs, shrimp, kin
+   Decapoda|Decapods
+    Portunidae|Swimming crabs
+     Callinectes sapidus|Atlantic blue crab
+    Nephropidae|Clawed lobsters
+     Homarus americanus|American lobster
+ Mollusca|Molluscs
+  Cephalopoda|Cephalopods
+   Octopoda|Octopuses
+    Octopodidae|Octopodids
+     Octopus vulgaris|Common octopus
+   Sepiida|Cuttlefish
+    Sepiidae|Cuttlefishes
+     Sepia officinalis|Common cuttlefish
+  Gastropoda|Snails and slugs
+   Stylommatophora|Land snails
+    Helicidae|Garden snails
+     Cornu aspersum|Garden snail
+  Bivalvia|Bivalves
+   Ostreida|Oysters
+    Ostreidae|True oysters
+     Crassostrea virginica|Eastern oyster
+ Echinodermata|Echinoderms
+  Asteroidea|Sea stars
+   Forcipulatida|Forcipulate sea stars
+    Asteriidae|Asteriid sea stars
+     Asterias rubens|Common starfish
+  Echinoidea|Sea urchins
+   Camarodonta|Camarodont urchins
+    Strongylocentrotidae|Spiny sea urchins
+     Strongylocentrotus purpuratus|Purple sea urchin
+ Cnidaria|Cnidarians
+  Scyphozoa|True jellyfish
+   Semaeostomeae|Moon and nettle jellies
+    Ulmaridae|Moon jellies
+     Aurelia aurita|Moon jellyfish
+  Anthozoa|Corals and anemones
+   Scleractinia|Stony corals
+    Acroporidae|Staghorn corals
+     Acropora cervicornis|Staghorn coral
+   Actiniaria|Sea anemones
+    Actiniidae|Common sea anemones
+     Actinia equina|Beadlet anemone
+`;
+const RANKS = ['Kingdom','Phylum','Class','Order','Family','Species'];
+const PLURAL = {phylum:'phyla', class:'classes', order:'orders', family:'families', species:'species'};
+const PHYLUM_VAR = {Chordata:'--p-chordata', Arthropoda:'--p-arthropoda', Mollusca:'--p-mollusca', Echinodermata:'--p-echinodermata', Cnidaria:'--p-cnidaria'};
+
+function parse(text){
+  const stack = []; let id = 0, top = null;
+  for (const line of text.split('\n')){
+    if (!line.trim()) continue;
+    const depth = line.length - line.trimStart().length;
+    const [sci, common] = line.trim().split('|');
+    const n = {id: id++, sci, common, children: []};
+    stack[depth] = n;
+    if (depth === 0) top = n; else stack[depth-1].children.push(n);
+  }
+  return top;
+}
+const root = d3.hierarchy(parse(RAW));
+const all = root.descendants();
+all.forEach(n => {
+  n.id = n.data.id;
+  n.phylum = n.depth === 0 ? null : n.ancestors().find(a => a.depth === 1).data.sci;
+  n.size = n.descendants().length - 1;
+});
+document.getElementById('ntaxa').textContent = all.length;
+const byId = new Map(all.map(n => [n.id, n]));
+const color = n => n.phylum ? `var(${PHYLUM_VAR[n.phylum]})` : 'var(--ink)';
+const fmt = v => String(Math.round(v * 100) / 100 || 0).replace('-', '−');
+
+/* lookup for search */
+const lookup = new Map();
+const dl = document.getElementById('taxa');
+all.forEach(n => {
+  const a = `${n.data.common} (${n.data.sci})`;
+  lookup.set(a.toLowerCase(), n); lookup.set(n.data.common.toLowerCase(), n); lookup.set(n.data.sci.toLowerCase(), n);
+  const o = document.createElement('option'); o.value = a; dl.appendChild(o);
+});
+document.getElementById('phyla').outerHTML = Object.keys(PHYLUM_VAR).map(p => {
+  const n = all.find(x => x.depth === 1 && x.data.sci === p);
+  return `<div><svg width="44" height="16" aria-hidden="true"><circle cx="8" cy="8" r="6" fill="var(${PHYLUM_VAR[p]})"/></svg>${n.data.common} (${p})</div>`;
+}).join('');
+
+/* ---------- state ---------- */
+let focus = all.find(n => n.data.sci === 'Felidae');
+const kInput = document.getElementById('k'), showDoi = document.getElementById('showdoi');
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+function computeDoi(){
+  const anc = new Map(focus.ancestors().map(a => [a, a.depth]));
+  for (const n of all){
+    let a = n; while (!anc.has(a)) a = a.parent;
+    n.dist = n.depth + focus.depth - 2 * a.depth;
+    n.doi = -n.depth - n.dist; // Furnas: API(x) = -depth(x), minus distance to the focus
+  }
+}
+
+/* ---------- drawing ---------- */
+const svg = d3.select('#tree');
+const gL = svg.append('g'), gN = svg.append('g');
+const ML = 96, MT = 22, ROW = 22;
+let prev = new Map();
+const linkGen = d3.linkHorizontal().x(p => p.x).y(p => p.y);
+
+function weight(n, k){ // 1 for the focus level, falling to 0 at the cut-off
+  return k ? 1 + (n.doi - focus.doi) / k : 1;
+}
+
+function render(firstTime){
+  const k = +kInput.value;
+  document.getElementById('kval').textContent = k;
+  computeDoi();
+  const cut = focus.doi - k;
+  const vis = n => n.doi >= cut;
+  const copy = n => ({src: n, children: (n.children || []).filter(vis).map(copy)});
+  const vr = d3.hierarchy(copy(root));
+  const vn = vr.descendants();
+
+  const avail = Math.max(640, document.getElementById('treebox').clientWidth);
+  const COL = Math.max(130, Math.min(200, (avail - ML - 190) / root.height));
+  const span = d => 0.75 + 0.55 * weight(d.data.src, k);
+  d3.tree().nodeSize([ROW, COL]).separation((a, b) => (span(a) + span(b)) / 2 * (a.parent === b.parent ? 1 : 1.25))(vr);
+
+  let x0 = Infinity, x1 = -Infinity;
+  vn.forEach(d => { x0 = Math.min(x0, d.x); x1 = Math.max(x1, d.x); });
+  const W = Math.round(ML + root.height * COL + 190), H = Math.round(x1 - x0 + MT * 2);
+  svg.attr('width', W).attr('height', H).attr('viewBox', `0 0 ${W} ${H}`);
+
+  const pos = new Map();
+  vn.forEach(d => pos.set(d.data.src.id, {x: ML + d.y, y: MT + d.x - x0}));
+  const startOf = n => { let a = n.parent; while (a && !prev.has(a.id)) a = a.parent; return a ? prev.get(a.id) : pos.get(n.id); };
+  const endOf = n => { let a = n.parent; while (a && !pos.has(a.id)) a = a.parent; return a ? pos.get(a.id) : prev.get(n.id); };
+  const dur = reduce || firstTime ? 0 : 650;
+  const t = svg.transition().duration(dur).ease(d3.easeCubicInOut);
+  const onPath = new Set(focus.ancestors().map(a => a.id));
+
+  // links
+  gL.selectAll('path.link').data(vn.slice(1), d => d.data.src.id).join(
+    enter => enter.append('path').attr('class', 'link').attr('d', d => { const s = startOf(d.data.src); return linkGen({source: s, target: s}); }),
+    update => update,
+    exit => exit.call(e => e.transition(t).attr('d', d => { const s = endOf(d.data.src); return linkGen({source: s, target: s}); }).style('opacity', 0).remove())
+  )
+  .classed('path', d => onPath.has(d.data.src.id))
+  .transition(t).style('opacity', 1)
+  .attr('d', d => linkGen({source: pos.get(d.parent.data.src.id), target: pos.get(d.data.src.id)}));
+
+  // nodes
+  const nodes = gN.selectAll('g.node').data(vn, d => d.data.src.id).join(
+    enter => {
+      const g = enter.append('g').attr('class', 'node').attr('tabindex', 0).attr('role', 'button')
+        .attr('transform', d => { const s = startOf(d.data.src); return `translate(${s.x},${s.y})`; }).style('opacity', 0);
+      g.append('title');
+      g.append('circle').attr('class', 'halo');
+      g.append('circle').attr('class', 'dot');
+      g.append('text').attr('class', 'lbl');
+      g.append('text').attr('class', 'badge');
+      return g;
+    },
+    update => update,
+    exit => exit.call(e => e.transition(t).attr('transform', d => { const s = endOf(d.data.src); return `translate(${s.x},${s.y})`; }).style('opacity', 0).remove())
+  );
+  nodes.on('click', (e, d) => setFocus(d.data.src))
+    .on('keydown', (e, d) => { if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); setFocus(d.data.src); } });
+
+  nodes.each(function(d){
+    const n = d.data.src, w = weight(n, k), isF = n === focus;
+    const g = d3.select(this).classed('focus', isF);
+    const r = isF ? 8.5 : 2.8 + 4 * w;
+    const fs = isF ? 15 : 11 + 2.6 * w;
+    const hidden = n.size - (d.descendants().length - 1);
+    const expanded = !!(d.children && d.children.length);
+    const hiddenKids = (n.children ? n.children.length : 0) - (d.children ? d.children.length : 0);
+    g.select('title').text(`${n.data.common} (${n.data.sci}) · ${RANKS[n.depth]} · DOI ${fmt(n.doi)}`);
+    g.attr('aria-label', `${n.data.common}, ${RANKS[n.depth]}, DOI ${n.doi}${isF ? ', current focus' : ''}`);
+    g.select('.halo').attr('r', isF ? r + 5 : 0);
+    g.select('.dot').attr('r', r).attr('fill', color(n));
+    const lbl = g.select('.lbl').attr('font-size', fs).attr('opacity', isF ? 1 : 0.5 + 0.5 * w)
+      .attr('font-weight', w >= 0.99 ? 600 : 400)
+      .attr('text-anchor', 'start').attr('x', expanded ? -r : r + 6)
+      .attr('y', expanded ? -(r + fs * 0.6 + 2) : 0);
+    lbl.selectAll('tspan').remove();
+    lbl.append('tspan').text(n.data.common);
+    if (n.depth === 5 && (isF || w >= 0.99)) lbl.append('tspan').attr('class', 'sp').attr('dx', 5).text(n.data.sci);
+    if (showDoi.checked) lbl.append('tspan').attr('class', 'dv').attr('dx', 6).attr('font-size', Math.max(10, fs - 2)).text(fmt(n.doi));
+    const badge = g.select('.badge').attr('font-size', 11);
+    if (hidden > 0 && (!expanded || hiddenKids > 0)){
+      const len = lbl.node().getBBox().width;
+      badge.text('+' + hidden).attr('text-anchor', 'start')
+        .attr('x', expanded ? -r + len + 6 : r + 6 + len + 6).attr('y', expanded ? +lbl.attr('y') + 0.5 : 0.5);
+    } else badge.text('');
+  });
+  nodes.transition(t).style('opacity', 1).attr('transform', d => { const p = pos.get(d.data.src.id); return `translate(${p.x},${p.y})`; });
+  gN.selectAll('g.node').filter(d => d.data.src === focus).raise();
+
+  prev = pos;
+  updatePanel(vn.length, cut);
+
+  if (!firstTime){
+    setTimeout(() => {
+      const el = gN.selectAll('g.node').filter(d => d.data.src === focus).node();
+      if (!el) return;
+      const b = el.getBoundingClientRect();
+      if (b.top < 60 || b.bottom > innerHeight - 40) el.scrollIntoView({block: 'center', behavior: reduce ? 'auto' : 'smooth'});
+    }, dur + 30);
+  }
+}
+
+function updatePanel(shown, cut){
+  const n = focus;
+  document.getElementById('frank').innerHTML = `<i style="background:${color(n)}"></i>${RANKS[n.depth]}`;
+  document.getElementById('fname').textContent = n.data.common;
+  const sci = document.getElementById('fsci');
+  sci.textContent = n.data.sci;
+  sci.classList.toggle('upright', n.depth < 5); // only genus and species names are italicised
+  const crumbs = document.getElementById('crumbs'); crumbs.innerHTML = '';
+  n.ancestors().reverse().forEach((a, i, arr) => {
+    if (i) { const s = document.createElement('span'); s.textContent = '›'; crumbs.appendChild(s); }
+    if (a === n){ const s = document.createElement('b'); s.textContent = a.data.sci; crumbs.appendChild(s); }
+    else { const b = document.createElement('button'); b.textContent = a.data.sci; b.title = a.data.common; b.onclick = () => setFocus(a); crumbs.appendChild(b); }
+  });
+  const kb = document.getElementById('kidsbox'), kids = document.getElementById('kids');
+  kids.innerHTML = '';
+  if (n.children){
+    kb.hidden = false;
+    const nm = RANKS[n.depth + 1].toLowerCase(), cnt = n.children.length;
+    document.getElementById('kidslab').textContent = `Contains ${cnt} ${cnt > 1 ? PLURAL[nm] : nm}`;
+    n.children.forEach(c => { const b = document.createElement('button'); b.textContent = c.data.common; b.title = c.data.sci; b.onclick = () => setFocus(c); kids.appendChild(b); });
+  } else {
+    kb.hidden = false;
+    document.getElementById('kidslab').textContent = 'Siblings';
+    n.parent.children.filter(c => c !== n).forEach(c => { const b = document.createElement('button'); b.textContent = c.data.common; b.title = c.data.sci; b.onclick = () => setFocus(c); kids.appendChild(b); });
+    if (!kids.children.length) kb.hidden = true;
+  }
+  document.getElementById('sdoi').textContent = `${fmt(n.doi)}  (depth ${n.depth})`;
+  document.getElementById('scut').textContent = `${fmt(cut)}  (focus − ${kInput.value})`;
+  document.getElementById('sshown').textContent = `${shown} of ${all.length} taxa`;
+  document.getElementById('count').textContent = `${shown} of ${all.length} taxa shown`;
+}
+
+function setFocus(n){ if (n === focus) return; focus = n; render(false); }
+
+kInput.addEventListener('input', () => render(false));
+showDoi.addEventListener('change', () => render(false));
+document.getElementById('reset').onclick = () => setFocus(root);
+const search = document.getElementById('search');
+const tryJump = () => { const n = lookup.get(search.value.trim().toLowerCase()); if (n){ setFocus(n); search.value = ''; search.blur(); } };
+search.addEventListener('change', tryJump);
+search.addEventListener('keydown', e => { if (e.key === 'Enter') tryJump(); });
+let rz; addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(() => render(true), 150); });
+
+render(true);
+</script>
+
+</body></html>
